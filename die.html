@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Dice Roller</title>
+
+<style>
+body{
+font-family:Arial;
+padding:10px;
+max-width:400px;
+margin:auto;
+}
+
+button{
+margin:3px;
+padding:6px 10px;
+}
+
+#history{
+margin-top:10px;
+border-top:1px solid #ccc;
+padding-top:10px;
+font-size:14px;
+}
+
+.roll{
+font-weight:bold;
+}
+
+input{
+width:120px;
+}
+</style>
+</head>
+
+<body>
+
+<h3>Dice Roller</h3>
+
+<input id="diceInput" value="1d20">
+<button onclick="roll()">Roll</button>
+
+<h4>Presets</h4>
+
+<div id="presets"></div>
+
+<input id="presetName" placeholder="name">
+<input id="presetDice" placeholder="dice">
+<button onclick="addPreset()">Add</button>
+
+<div id="history"></div>
+
+<script>
+
+let presets = [
+{name:"Attack", dice:"1d20+5"},
+{name:"Damage", dice:"2d6+3"},
+{name:"Advantage", dice:"2d20kh1"}
+]
+
+function renderPresets(){
+
+let container = document.getElementById("presets")
+container.innerHTML=""
+
+presets.forEach(p=>{
+
+let btn=document.createElement("button")
+
+btn.innerText=p.name+" ("+p.dice+")"
+
+btn.onclick=()=>{
+
+document.getElementById("diceInput").value=p.dice
+roll()
+
+}
+
+container.appendChild(btn)
+
+})
+
+}
+
+function parseDice(str){
+
+let match=str.match(/(\d*)d(\d+)(kh1|kl1)?([+-]\d+)?/)
+
+if(!match)return "invalid"
+
+let num=match[1]?parseInt(match[1]):1
+let sides=parseInt(match[2])
+let keep=match[3]
+let mod=match[4]?parseInt(match[4]):0
+
+let rolls=[]
+
+for(let i=0;i<num;i++){
+
+rolls.push(Math.floor(Math.random()*sides)+1)
+
+}
+
+let total
+
+if(keep=="kh1") total=Math.max(...rolls)
+else if(keep=="kl1") total=Math.min(...rolls)
+else total=rolls.reduce((a,b)=>a+b)
+
+total+=mod
+
+return {rolls,total}
+
+}
+
+function roll(){
+
+let str=document.getElementById("diceInput").value
+
+let result=parseDice(str)
+
+if(result=="invalid")return
+
+let log=document.getElementById("history")
+
+let div=document.createElement("div")
+
+div.innerHTML="<span class='roll'>"+str+"</span> → "+result.rolls.join(", ")+" = "+result.total
+
+log.prepend(div)
+
+}
+
+function addPreset(){
+
+let name=document.getElementById("presetName").value
+let dice=document.getElementById("presetDice").value
+
+if(!name||!dice)return
+
+presets.push({name,dice})
+
+renderPresets()
+
+}
+
+renderPresets()
+
+</script>
+
+</body>
+</html>
