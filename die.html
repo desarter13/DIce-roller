@@ -1,153 +1,189 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Dice Roller</title>
+  <meta charset="UTF-8">
+  <title>Dice Roller</title>
 
-<style>
-body{
-font-family:Arial;
-padding:10px;
-max-width:400px;
-margin:auto;
-}
+  <style>
+    body {
+      font-family: Arial;
+      padding: 10px;
+      max-width: 400px;
+      margin: auto;
+    }
 
-button{
-margin:3px;
-padding:6px 10px;
-}
+    button {
+      margin: 3px;
+      padding: 6px 10px;
+    }
 
-#history{
-margin-top:10px;
-border-top:1px solid #ccc;
-padding-top:10px;
-font-size:14px;
-}
+    #history {
+      margin-top: 10px;
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+      font-size: 14px;
+    }
 
-.roll{
-font-weight:bold;
-}
+    .roll {
+      font-weight: bold;
+    }
 
-input{
-width:120px;
-}
-</style>
+    input {
+      width: 120px;
+    }
+  </style>
 </head>
 
 <body>
+  <h3>Dice Roller</h3>
 
-<h3>Dice Roller</h3>
+  <!-- Поле ввода для указания типа кубика (например, 1d20, 2d6+3) -->
+  <input id="diceInput" value="1d20">
+  <!-- Кнопка для выполнения броска -->
+  <button onclick="roll()">Roll</button>
 
-<input id="diceInput" value="1d20">
-<button onclick="roll()">Roll</button>
+  <h4>Presets</h4>
 
-<h4>Presets</h4>
+  <!-- Контейнер для отображения кнопок пресетов -->
+  <div id="presets"></div>
 
-<div id="presets"></div>
+  <!-- Поле для ввода имени нового пресета -->
+  <input id="presetName" placeholder="name">
+  <!-- Поле для ввода конфигурации кубиков нового пресета (например, 2d6+3) -->
+  <input id="presetDice" placeholder="dice">
+  <!-- Кнопка для добавления нового пресета в список -->
+  <button onclick="addPreset()">Add</button>
 
-<input id="presetName" placeholder="name">
-<input id="presetDice" placeholder="dice">
-<button onclick="addPreset()">Add</button>
+  <!-- Область для отображения истории бросков -->
+  <div id="history"></div>
 
-<div id="history"></div>
+  <script>
+    // Массив предустановленных пресетов с названиями и конфигурациями бросков
+    let presets = [
+      {name: "Attack", dice: "1d20+5"},    // Атака: 1 кубик d20 + модификатор +5
+      {name: "Damage", dice: "2d6+3"},   // Урон: 2 кубика d6 + модификатор +3
+      {name: "Advantage", dice: "2d20kh1"} // Преимущество: 2d20, берётся лучший результат (keep highest 1)
+    ];
 
-<script>
+    // Функция для отрисовки кнопок пресетов на странице
+    function renderPresets() {
+      // Получаем контейнер для пресетов
+      let container = document.getElementById("presets");
+      // Очищаем контейнер перед новой отрисовкой
+      container.innerHTML = "";
 
-let presets = [
-{name:"Attack", dice:"1d20+5"},
-{name:"Damage", dice:"2d6+3"},
-{name:"Advantage", dice:"2d20kh1"}
-]
+      // Для каждого пресета создаём кнопку
+      presets.forEach(p => {
+        // Создаём элемент кнопки
+        let btn = document.createElement("button");
+        // Устанавливаем текст кнопки: имя пресета и его конфигурация в скобках
+        btn.innerText = p.name + " (" + p.dice + ")";
 
-function renderPresets(){
+        // Назначаем обработчик клика: при нажатии подставляем конфигурацию в поле ввода и выполняем бросок
+        btn.onclick = () => {
+          document.getElementById("diceInput").value = p.dice;
+          roll();
+        };
 
-let container = document.getElementById("presets")
-container.innerHTML=""
+        // Добавляем кнопку в контейнер
+        container.appendChild(btn);
+      });
+    }
 
-presets.forEach(p=>{
+    // Функция для парсинга строки броска и вычисления результата
+    function parseDice(str) {
+      // Регулярное выражение для разбора строки броска:
+      // (\d*)d(\d+) — количество кубиков и их тип (например, 2d6)
+      // (kh1|kl1)? — опциональный модификатор (keep highest/lowest 1)
+      // ([+-]\d+)? — опциональный модификатор (+5, -3 и т. д.)
+      let match = str.match(/(\d*)d(\d+)(kh1|kl1)?([+-]\d+)?/);
 
-let btn=document.createElement("button")
+      // Если строка не соответствует формату, возвращаем ошибку
+      if (!match) return "invalid";
 
-btn.innerText=p.name+" ("+p.dice+")"
+      // Количество кубиков: если не указано, по умолчанию 1
+      let num = match[1] ? parseInt(match[1]) : 1;
+      // Количество граней на кубике
+      let sides = parseInt(match[2]);
+      // Модификатор «keep»: kh1 (лучший), kl1 (худший) или отсутствует
+      let keep = match[3];
+      // Числовой модификатор (+/-)
+      let mod = match[4] ? parseInt(match[4]) : 0;
 
-btn.onclick=()=>{
+      // Массив для хранения результатов бросков каждого кубика
+      let rolls = [];
 
-document.getElementById("diceInput").value=p.dice
-roll()
+      // Генерируем случайное число для каждого кубика (от 1 до sides)
+      for (let i = 0; i < num; i++) {
+        rolls.push(Math.floor(Math.random() * sides) + 1);
+      }
 
-}
+      // Переменная для итогового результата
+      let total;
 
-container.appendChild(btn)
+      // Определяем итоговый результат в зависимости от модификатора keep
+      if (keep == "kh1") {
+        // Если kh1 — берём максимальный результат из бросков
+        total = Math.max(...rolls);
+      } else if (keep == "kl1") {
+        // Если kl1 — берём минимальный результат из бросков
+        total = Math.min(...rolls);
+      } else {
+        // Иначе суммируем все броски
+        total = rolls.reduce((a, b) => a + b);
+      }
 
-})
+      // Добавляем модификатор к итоговому результату
+      total += mod;
 
-}
+      // Возвращаем объект с массивом бросков и итоговым результатом
+      return { rolls, total };
+    }
 
-function parseDice(str){
+    // Функция для выполнения броска
+    function roll() {
+      // Получаем строку из поля ввода
+      let str = document.getElementById("diceInput").value;
+      // Парсим строку и получаем результат броска
+      let result = parseDice(str);
 
-let match=str.match(/(\d*)d(\d+)(kh1|kl1)?([+-]\d+)?/)
+      // Если строка некорректна, прерываем выполнение
+      if (result == "invalid") return;
 
-if(!match)return "invalid"
+      // Получаем контейнер для истории бросков
+      let log = document.getElementById("history");
+      // Создаём новый элемент для записи в истории
+      let div = document.createElement("div");
 
-let num=match[1]?parseInt(match[1]):1
-let sides=parseInt(match[2])
-let keep=match[3]
-let mod=match[4]?parseInt(match[4]):0
+      // Формируем HTML для отображения:
+      // - исходная строка броска (выделена жирным)
+      // - результаты отдельных бросков через запятую
+      // - итоговый результат
+      div.innerHTML = "<span class='roll'>" + str + "</span> → " +
+                    result.rolls.join(", ") + " = " + result.total;
 
-let rolls=[]
+      // Добавляем новую запись в начало истории (самые свежие броски сверху)
+      log.prepend(div);
+    }
 
-for(let i=0;i<num;i++){
+    // Функция для добавления нового пресета
+    function addPreset() {
+      // Получаем имя и конфигурацию нового пресета из полей ввода
+      let name = document.getElementById("presetName").value;
+      let dice = document.getElementById("presetDice").value;
 
-rolls.push(Math.floor(Math.random()*sides)+1)
+      // Если одно из полей пустое, прерываем выполнение
+      if (!name || !dice) return;
 
-}
+      // Добавляем новый пресет в массив
+      presets.push({ name, dice });
 
-let total
+      // Перерисовываем список пресетов на странице
+      renderPresets();
+    }
 
-if(keep=="kh1") total=Math.max(...rolls)
-else if(keep=="kl1") total=Math.min(...rolls)
-else total=rolls.reduce((a,b)=>a+b)
-
-total+=mod
-
-return {rolls,total}
-
-}
-
-function roll(){
-
-let str=document.getElementById("diceInput").value
-
-let result=parseDice(str)
-
-if(result=="invalid")return
-
-let log=document.getElementById("history")
-
-let div=document.createElement("div")
-
-div.innerHTML="<span class='roll'>"+str+"</span> → "+result.rolls.join(", ")+" = "+result.total
-
-log.prepend(div)
-
-}
-
-function addPreset(){
-
-let name=document.getElementById("presetName").value
-let dice=document.getElementById("presetDice").value
-
-if(!name||!dice)return
-
-presets.push({name,dice})
-
-renderPresets()
-
-}
-
-renderPresets()
-
-</script>
-
+    // Инициализируем отображение пресетов при загрузке страницы
+    renderPresets();
+  </script>
 </body>
 </html>
